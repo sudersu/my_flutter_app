@@ -50,7 +50,7 @@ class TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('MMM dd, yyyy');
-    final timeFormat = DateFormat('hh:mm a');
+    final timeFormat = DateFormat('h:mm a'); // Changed to show AM/PM properly
     
     return Card(
       margin: EdgeInsets.only(bottom: 12),

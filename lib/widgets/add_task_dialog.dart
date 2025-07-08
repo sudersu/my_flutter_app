@@ -85,13 +85,31 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       return;
     }
 
+    // Create the complete DateTime with proper time
     final DateTime taskDateTime = DateTime(
       _selectedDate.year,
       _selectedDate.month,
       _selectedDate.day,
       _selectedTime.hour,
       _selectedTime.minute,
+      0, // seconds
+      0, // milliseconds
     );
+
+    print('Saving task with date/time: $taskDateTime');
+    print('Selected time: ${_selectedTime.format(context)}');
+    print('Has reminder: $_hasReminder');
+
+    // Check if the task time is in the past
+    if (taskDateTime.isBefore(DateTime.now()) && _hasReminder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cannot set reminder for past time. Please select a future time.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     final task = Task(
       title: _titleController.text.trim(),
@@ -103,9 +121,25 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     final box = Hive.box<Task>('tasks');
     await box.add(task);
 
+    print('Task saved to Hive: ${task.title} at ${task.dateTime}');
+
     if (_hasReminder) {
       final notificationService = NotificationService();
       await notificationService.scheduleNotification(task);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Task added with reminder set for ${_selectedTime.format(context)}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Task added successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
 
     Navigator.pop(context);
@@ -209,10 +243,32 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                   },
                   activeColor: Color(0xFF3B82F6),
                 ),
-                Text(
-                  'Set reminder with voice alert',
-                  style: TextStyle(color: Colors.white),
+                Expanded(
+                  child: Text(
+                    'Set reminder with voice alert',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
+                if (_hasReminder) ...[
+                  SizedBox(width: 8),
+                  InkWell(
+                    onTap: () async {
+                      final notificationService = NotificationService();
+                      await notificationService.testVoiceAlert();
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF3B82F6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Test 🔊',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             SizedBox(height: 24),

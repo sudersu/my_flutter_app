@@ -104,24 +104,65 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
       _selectedDate.day,
       _selectedTime.hour,
       _selectedTime.minute,
+      0, // seconds
+      0, // milliseconds
     );
+
+    print('Editing task - Original: ${widget.task.title} at ${widget.task.dateTime}');
+    print('Editing task - New: ${_titleController.text.trim()} at $taskDateTime');
+    print('Has reminder: $_hasReminder');
+
+    // Check if the task time is in the past for reminders
+    if (taskDateTime.isBefore(DateTime.now()) && _hasReminder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cannot set reminder for past time. Please select a future time.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     // Cancel existing notification if it exists
     if (widget.task.hasReminder && widget.task.notificationId != null) {
       final notificationService = NotificationService();
       await notificationService.cancelNotification(widget.task.notificationId!);
+      print('Cancelled existing notification: ${widget.task.notificationId}');
     }
 
+    // Update the task properties
     widget.task.title = _titleController.text.trim();
     widget.task.description = _descriptionController.text.trim();
     widget.task.dateTime = taskDateTime;
     widget.task.hasReminder = _hasReminder;
     
+    // Clear notification ID if reminder is disabled
+    if (!_hasReminder) {
+      widget.task.notificationId = null;
+    }
+    
+    // Save the task
     await widget.task.save();
+    print('Task updated and saved: ${widget.task.title} at ${widget.task.dateTime}');
 
+    // Schedule new notification if needed
     if (_hasReminder) {
       final notificationService = NotificationService();
       await notificationService.scheduleNotification(widget.task);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Task updated with reminder set for ${_selectedTime.format(context)}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Task updated successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
 
     Navigator.pop(context);
@@ -225,10 +266,32 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                   },
                   activeColor: Color(0xFF3B82F6),
                 ),
-                Text(
-                  'Set reminder with voice alert',
-                  style: TextStyle(color: Colors.white),
+                Expanded(
+                  child: Text(
+                    'Set reminder with voice alert',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
+                if (_hasReminder) ...[
+                  SizedBox(width: 8),
+                  InkWell(
+                    onTap: () async {
+                      final notificationService = NotificationService();
+                      await notificationService.testVoiceAlert();
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF3B82F6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Test 🔊',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             SizedBox(height: 24),
