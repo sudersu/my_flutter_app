@@ -96,19 +96,84 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       0, // milliseconds
     );
 
+    final DateTime now = DateTime.now();
+    final bool isToday = _selectedDate.year == now.year && 
+                        _selectedDate.month == now.month && 
+                        _selectedDate.day == now.day;
+
     print('Saving task with date/time: $taskDateTime');
     print('Selected time: ${_selectedTime.format(context)}');
     print('Has reminder: $_hasReminder');
+    print('Is today: $isToday');
+    print('Current time: $now');
 
-    // Check if the task time is in the past
-    if (taskDateTime.isBefore(DateTime.now()) && _hasReminder) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Cannot set reminder for past time. Please select a future time.'),
-          backgroundColor: Colors.orange,
+    // Smart time validation: Only check if it's today AND reminder is enabled
+    if (_hasReminder && isToday && taskDateTime.isBefore(now)) {
+      // Show dialog asking user what to do
+      final result = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          title: Text('Past Time Selected', style: TextStyle(color: Colors.white)),
+          content: Text(
+            'The selected time (${_selectedTime.format(context)}) is in the past for today.\n\nWhat would you like to do?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'cancel'),
+              child: Text('Cancel', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'no_reminder'),
+              child: Text('Save without reminder', style: TextStyle(color: Colors.blue)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'tomorrow'),
+              child: Text('Schedule for tomorrow', style: TextStyle(color: Colors.green)),
+            ),
+          ],
         ),
       );
-      return;
+
+      if (result == 'cancel' || result == null) {
+        return;
+      } else if (result == 'no_reminder') {
+        _hasReminder = false;
+      } else if (result == 'tomorrow') {
+        _selectedDate = _selectedDate.add(Duration(days: 1));
+        final newTaskDateTime = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
+          _selectedTime.hour,
+          _selectedTime.minute,
+          0,
+          0,
+        );
+        // Update taskDateTime to tomorrow
+        final task = Task(
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          dateTime: newTaskDateTime,
+          hasReminder: _hasReminder,
+        );
+
+        final box = Hive.box<Task>('tasks');
+        await box.add(task);
+
+        final notificationService = NotificationService();
+        await notificationService.scheduleNotification(task);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Task scheduled for tomorrow at ${_selectedTime.format(context)}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+        return;
+      }
     }
 
     final task = Task(
@@ -250,21 +315,46 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                   ),
                 ),
                 if (_hasReminder) ...[
-                  SizedBox(width: 8),
+                  SizedBox(width: 4),
                   InkWell(
                     onTap: () async {
                       final notificationService = NotificationService();
                       await notificationService.testVoiceAlert();
                     },
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                       decoration: BoxDecoration(
                         color: Color(0xFF3B82F6),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'Test 🔊',
-                        style: TextStyle(color: Colors.white, fontSize: 12),
+                        'Voice 🔊',
+                        style: TextStyle(color: Colors.white, fontSize: 10),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  InkWell(
+                    onTap: () async {
+                      final notificationService = NotificationService();
+                      await notificationService.testImmediateNotification();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Test notification will appear in 3 seconds. Tap it to test voice.'),
+                          backgroundColor: Colors.blue,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Notify �',
+                        style: TextStyle(color: Colors.white, fontSize: 10),
                       ),
                     ),
                   ),

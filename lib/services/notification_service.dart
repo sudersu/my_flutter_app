@@ -79,11 +79,20 @@ class NotificationService {
     task.notificationId = notificationId;
     await task.save();
 
+    final DateTime now = DateTime.now();
+    
     // Check if the scheduled time is in the future
-    if (task.dateTime.isBefore(DateTime.now())) {
-      print('Scheduled time is in the past: ${task.dateTime}');
+    if (task.dateTime.isBefore(now)) {
+      print('⚠️  Scheduled time is in the past: ${task.dateTime}');
+      print('⚠️  Current time: $now');
       return;
     }
+
+    // Calculate time difference for debugging
+    final Duration timeDiff = task.dateTime.difference(now);
+    print('📅 Task scheduled for: ${task.dateTime}');
+    print('🕒 Current time: $now');
+    print('⏰ Time until notification: ${timeDiff.inMinutes} minutes');
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
@@ -95,7 +104,7 @@ class NotificationService {
       showWhen: true,
       enableVibration: true,
       playSound: true,
-      sound: RawResourceAndroidNotificationSound('notification'),
+      ticker: 'Task Reminder',
     );
 
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
@@ -103,15 +112,17 @@ class NotificationService {
     );
 
     final scheduledDate = tz.TZDateTime.from(task.dateTime, tz.local);
+    final currentTZ = tz.TZDateTime.now(tz.local);
     
-    print('Scheduling notification for: ${scheduledDate}');
-    print('Current time: ${tz.TZDateTime.now(tz.local)}');
+    print('🔔 Scheduling notification for: ${scheduledDate}');
+    print('🔔 Current timezone time: ${currentTZ}');
+    print('🔔 Notification ID: $notificationId');
 
     try {
       await _notifications.zonedSchedule(
         notificationId,
         'Task Reminder 📝',
-        '${task.title}\n${task.description.isNotEmpty ? task.description : "Time to complete your task!"}',
+        '${task.title}${task.description.isNotEmpty ? "\n${task.description}" : ""}',
         scheduledDate,
         platformChannelSpecifics,
         payload: task.title,
@@ -119,9 +130,15 @@ class NotificationService {
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
       
-      print('Notification scheduled successfully with ID: $notificationId');
+      print('✅ Notification scheduled successfully with ID: $notificationId');
+      
+      // Immediate test notification to verify system works
+      if (timeDiff.inMinutes <= 1) {
+        print('🧪 Scheduling immediate test (task is very soon)');
+      }
     } catch (e) {
-      print('Error scheduling notification: $e');
+      print('❌ Error scheduling notification: $e');
+      rethrow; // Re-throw to let caller handle the error
     }
   }
 
@@ -165,6 +182,43 @@ class NotificationService {
   // Direct voice test
   Future<void> testVoiceAlert() async {
     await _flutterTts.speak("Voice alert test successful! Your reminders will work like this.");
+  }
+
+  // Test immediate notification (for debugging)
+  Future<void> testImmediateNotification() async {
+    await initialize();
+    
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'test_immediate',
+      'Immediate Test',
+      channelDescription: 'Test immediate notifications',
+      importance: Importance.max,
+      priority: Priority.max,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
+    );
+
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+
+    // Schedule for 3 seconds from now
+    final scheduledTime = tz.TZDateTime.now(tz.local).add(Duration(seconds: 3));
+    
+    print('🧪 Test notification scheduled for: $scheduledTime');
+
+    await _notifications.zonedSchedule(
+      88888,
+      'Test Notification 🧪',
+      'This is a test notification. Voice will play when you tap this.',
+      scheduledTime,
+      platformChannelSpecifics,
+      payload: 'Test notification - tap to hear voice',
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+    );
   }
 }
 
