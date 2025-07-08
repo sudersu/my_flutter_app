@@ -52,11 +52,16 @@ class NotificationService {
   }
 
   Future<void> _speakTaskReminder(String taskTitle) async {
-    // Check if voice reminders are enabled
-    final settingsBox = await Hive.openBox('settings');
-    final voiceEnabled = settingsBox.get('voiceRemindersEnabled', defaultValue: true);
-    
-    if (voiceEnabled) {
+    try {
+      // Check if voice reminders are enabled
+      final settingsBox = await Hive.openBox('settings');
+      final voiceEnabled = settingsBox.get('voiceRemindersEnabled', defaultValue: true);
+      
+      if (voiceEnabled) {
+        await _flutterTts.speak("Reminder: $taskTitle");
+      }
+    } catch (e) {
+      // If settings box fails, just speak the reminder
       await _flutterTts.speak("Reminder: $taskTitle");
     }
   }
